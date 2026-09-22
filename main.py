@@ -1,156 +1,161 @@
 import streamlit as st
-from prediction_helper import predict
+from prediction_helper import INPUT_RANGES, predict
 
 
-# Set the page configuration and title
-
-st.set_page_config(
-    page_title="Credit Risk Modelling",
-    page_icon="📊"
-)
-
+st.set_page_config(page_title="Credit Risk Modelling", page_icon="📊")
 st.title("Credit Risk Modelling")
 
 
-# Create rows of three columns each
+def clear_previous_result():
+    st.session_state.pop("prediction_result", None)
+    st.session_state.pop("prediction_error", None)
+
+
+def range_help(name):
+    low, high = INPUT_RANGES[name]
+    if name in {"age", "income", "loan_amount", "loan_tenure_months", "num_open_accounts"}:
+        return f"Valid range: {low:,} to {high:,}."
+    return f"Valid range: {low:g} to {high:g}."
+
 
 row1 = st.columns(3)
 row2 = st.columns(3)
 row3 = st.columns(3)
 row4 = st.columns(3)
 
-
-# Assign inputs to the first row
-
 with row1[0]:
     age = st.number_input(
-        'Age',
-        min_value=18,
+        "Age",
         step=1,
-        max_value=100,
-        value=28
+        value=28,
+        help=range_help("age"),
+        on_change=clear_previous_result,
     )
 
 with row1[1]:
     income = st.number_input(
-        'Income',
-        min_value=0,
-        value=1200000
+        "Income",
+        step=1,
+        value=1_200_000,
+        help=range_help("income"),
+        on_change=clear_previous_result,
     )
 
 with row1[2]:
     loan_amount = st.number_input(
-        'Loan Amount',
-        min_value=0,
-        value=2560000
+        "Loan Amount",
+        step=1,
+        value=2_560_000,
+        help=range_help("loan_amount"),
+        on_change=clear_previous_result,
     )
-
-
-# Calculate Loan to Income Ratio
-
-loan_to_income_ratio = (
-    loan_amount / income if income > 0 else 0
-)
 
 with row2[0]:
     st.text("Loan to Income Ratio:")
-    st.text(f"{loan_to_income_ratio:.2f}")
-
-
-# Remaining controls
+    if income > 0:
+        st.text(f"{round(loan_amount / income, 2):.2f}")
+    else:
+        st.text("Income must be greater than 0")
 
 with row2[1]:
     loan_tenure_months = st.number_input(
-        'Loan Tenure (months)',
-        min_value=0,
+        "Loan Tenure (months)",
         step=1,
-        value=36
+        value=36,
+        help=range_help("loan_tenure_months"),
+        on_change=clear_previous_result,
     )
 
 with row2[2]:
     avg_dpd_per_delinquency = st.number_input(
-        'Avg DPD',
-        min_value=0,
-        value=20
+        "Avg DPD",
+        step=0.1,
+        value=3.3,
+        format="%.1f",
+        help=range_help("avg_dpd_per_delinquency"),
+        on_change=clear_previous_result,
     )
-
 
 with row3[0]:
     delinquency_ratio = st.number_input(
-        'Delinquency Ratio',
-        min_value=0,
-        max_value=100,
-        step=1,
-        value=30
+        "Delinquency Ratio",
+        step=0.1,
+        value=30.0,
+        format="%.1f",
+        help=range_help("delinquency_ratio"),
+        on_change=clear_previous_result,
     )
 
 with row3[1]:
     credit_utilization_ratio = st.number_input(
-        'Credit Utilization Ratio',
-        min_value=0,
-        max_value=100,
-        step=1,
-        value=30
+        "Credit Utilization Ratio",
+        step=1.0,
+        value=30.0,
+        help=range_help("credit_utilization_ratio"),
+        on_change=clear_previous_result,
     )
 
 with row3[2]:
     num_open_accounts = st.number_input(
-        'Open Loan Accounts',
-        min_value=1,
-        max_value=4,
+        "Open Loan Accounts",
         step=1,
-        value=2
+        value=2,
+        help=range_help("num_open_accounts"),
+        on_change=clear_previous_result,
     )
-
 
 with row4[0]:
     residence_type = st.selectbox(
-        'Residence Type',
-        ['Owned', 'Rented', 'Mortgage']
+        "Residence Type",
+        ["Owned", "Rented", "Mortgage"],
+        on_change=clear_previous_result,
     )
 
 with row4[1]:
     loan_purpose = st.selectbox(
-        'Loan Purpose',
-        ['Education', 'Home', 'Auto', 'Personal']
+        "Loan Purpose",
+        ["Education", "Home", "Auto", "Personal"],
+        on_change=clear_previous_result,
     )
 
 with row4[2]:
     loan_type = st.selectbox(
-        'Loan Type',
-        ['Unsecured', 'Secured']
+        "Loan Type",
+        ["Unsecured", "Secured"],
+        on_change=clear_previous_result,
     )
 
+if st.button("Calculate Risk"):
+    # Clear old output first, including when the new values fail validation.
+    clear_previous_result()
+    try:
+        st.session_state["prediction_result"] = predict(
+            age=age,
+            income=income,
+            loan_amount=loan_amount,
+            loan_tenure_months=loan_tenure_months,
+            avg_dpd_per_delinquency=avg_dpd_per_delinquency,
+            delinquency_ratio=delinquency_ratio,
+            credit_utilization_ratio=credit_utilization_ratio,
+            num_open_accounts=num_open_accounts,
+            residence_type=residence_type,
+            loan_purpose=loan_purpose,
+            loan_type=loan_type,
+        )
+    except ValueError as error:
+        st.session_state["prediction_error"] = str(error)
+    except Exception as error:
+        st.session_state["prediction_error"] = (
+            "Prediction failed. Check that model_data.joblib is present and "
+            "the installed package versions match the model. "
+            f"Details: {error}"
+        )
 
-# Button to calculate risk
+if "prediction_error" in st.session_state:
+    st.error(st.session_state["prediction_error"])
 
-if st.button('Calculate Risk'):
-
-    probability, credit_score, rating = predict(
-        age,
-        income,
-        loan_amount,
-        loan_tenure_months,
-        avg_dpd_per_delinquency,
-        delinquency_ratio,
-        credit_utilization_ratio,
-        num_open_accounts,
-        residence_type,
-        loan_purpose,
-        loan_type
-    )
-
-
-    # Display the results
-
-    st.write(
-        f"Default Probability: {probability:.2%}"
-    )
-
-    st.write(
-        f"Credit Score: {credit_score}"
-    )
-
-    st.write(
-        f"Rating: {rating}"
-    )
+if "prediction_result" in st.session_state:
+    probability, credit_score, rating = st.session_state["prediction_result"]
+    st.write(f"Default Probability: {probability:.2%}")
+    st.write(f"Credit Score: {credit_score}")
+    st.write(f"Rating: {rating}")
