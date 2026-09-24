@@ -10,17 +10,27 @@ import pandas as pd
 
 MODEL_PATH = Path(__file__).resolve().parent / "artifacts" / "model_data.joblib"
 
-# Observed limits in the cleaned training data used by the notebook.
+# Broad, bounded scenario limits for the app's portfolio demonstration.
+# They are intentionally wider than the source data for some features; they
+# are not lender eligibility rules and do not guarantee reliable extrapolation.
 INPUT_RANGES = {
-    "age": (18, 70),
-    "income": (100_000, 11_999_000),
-    "loan_amount": (50_000, 47_819_000),
-    "loan_tenure_months": (6, 59),
-    "avg_dpd_per_delinquency": (0.0, 10.0),
+    "age": (18, 80),
+    "income": (100_000, 20_000_000),
+    "loan_amount": (10_000, 80_000_000),
+    "avg_dpd_per_delinquency": (0.0, 60.0),
     "delinquency_ratio": (0.0, 100.0),
-    "credit_utilization_ratio": (0.0, 99.0),
-    "num_open_accounts": (1, 4),
-    "loan_to_income": (0.30, 4.57),
+    "credit_utilization_ratio": (0.0, 100.0),
+    "num_open_accounts": (0, 4),
+    "loan_to_income": (0.0, 10.0),
+}
+
+# Repayment-tenure scenario bounds vary by loan purpose. Education excludes
+# the course period and any repayment moratorium/grace period.
+LOAN_TENURE_RANGES = {
+    "Home": (6, 180),
+    "Auto": (6, 84),
+    "Education": (6, 180),
+    "Personal": (6, 120),
 }
 
 EXPECTED_FEATURES = [
@@ -153,11 +163,6 @@ def _validate_inputs(
     loan_amount = _validate_integer(
         "Loan Amount", loan_amount, *INPUT_RANGES["loan_amount"]
     )
-    loan_tenure_months = _validate_integer(
-        "Loan Tenure (months)",
-        loan_tenure_months,
-        *INPUT_RANGES["loan_tenure_months"],
-    )
     avg_dpd_per_delinquency = _validate_decimal(
         "Avg DPD",
         avg_dpd_per_delinquency,
@@ -168,16 +173,11 @@ def _validate_inputs(
         delinquency_ratio,
         *INPUT_RANGES["delinquency_ratio"],
     )
-    credit_utilization_ratio = _as_finite_number(
-        "Credit Utilization Ratio", credit_utilization_ratio
+    credit_utilization_ratio = _validate_integer(
+        "Credit Utilization Ratio",
+        credit_utilization_ratio,
+        *INPUT_RANGES["credit_utilization_ratio"],
     )
-    if not (
-        INPUT_RANGES["credit_utilization_ratio"][0]
-        <= credit_utilization_ratio
-        <= INPUT_RANGES["credit_utilization_ratio"][1]
-    ):
-        low, high = INPUT_RANGES["credit_utilization_ratio"]
-        raise ValueError(f"Credit Utilization Ratio must be between {low} and {high}.")
     num_open_accounts = _validate_integer(
         "Open Loan Accounts", num_open_accounts, *INPUT_RANGES["num_open_accounts"]
     )
@@ -191,6 +191,14 @@ def _validate_inputs(
         raise ValueError("Choose a valid Loan Purpose.")
     if loan_type not in valid_loan_types:
         raise ValueError("Choose a valid Loan Type.")
+
+    tenure_min, tenure_max = LOAN_TENURE_RANGES[loan_purpose]
+    loan_tenure_months = _validate_integer(
+        f"{loan_purpose} Loan Tenure (months)",
+        loan_tenure_months,
+        tenure_min,
+        tenure_max,
+    )
 
     # The notebook engineers this feature as round(loan_amount / income, 2).
     loan_to_income = round(loan_amount / income, 2)
