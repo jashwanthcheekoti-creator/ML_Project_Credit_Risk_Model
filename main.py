@@ -4,11 +4,7 @@ from prediction_helper import INPUT_RANGES, LOAN_TENURE_RANGES, predict
 
 st.set_page_config(page_title="Credit Risk Modelling", page_icon="📊")
 st.title("Credit Risk Modelling")
-st.caption(
-    "Portfolio project using broad, bounded scenario inputs. Results are model "
-    "estimates—not validated lending decisions or official credit scores. "
-    "Values near the input limits may be outside the model's strongest data coverage."
-)
+st.caption("Explore borrower profiles and see how the model's estimated risk changes.")
 
 
 def clear_previous_result():
@@ -197,5 +193,5 @@ if "prediction_error" in st.session_state:
 if "prediction_result" in st.session_state:
     probability, credit_score, rating = st.session_state["prediction_result"]
     st.write(f"Default Probability: {probability:.2%}")
-    st.write(f"Project Risk Score (custom scale): {credit_score}")
+    st.write(f"Credit Risk Score: {credit_score}")
     st.write(f"Rating: {rating}")
